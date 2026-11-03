@@ -8,6 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from .config import Settings
 from .db import Database
@@ -45,6 +46,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Prometheus metrics for the ShipIt ServiceMonitor (scrapes /metrics).
+# Kept out of the app logic on purpose: scraping is passive, and metrics
+# are infrastructure, not application behavior.
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 
 @app.get("/health")
