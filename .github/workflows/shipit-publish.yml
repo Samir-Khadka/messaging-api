@@ -53,19 +53,22 @@ jobs:
     # :<sha> tag back into Samir-Khadka/shipit-platform (k8s/services/messaging)
     # so ArgoCD syncs it. Needs a SHIPIT_BUMP_PAT secret on THIS repo — a PAT
     # with repo write access to Samir-Khadka/shipit-platform.
-    # WITHOUT the PAT, this job skips and Samir bumps manually:
-    #   cd shipit-platform && ./scripts/bump-service-image.sh messaging-api <sha>
+    # WITHOUT the PAT, every step below skips (green, no-op) and Samir bumps
+    # manually: cd shipit-platform && ./scripts/bump-service-image.sh messaging-api <sha>
+    # (GitHub does not allow the `secrets` context in a job-level `if`, so the
+    # guard lives on each step instead.)
     needs: build
-    if: ${{ secrets.SHIPIT_BUMP_PAT != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        if: ${{ secrets.SHIPIT_BUMP_PAT != '' }}
         with:
           repository: Samir-Khadka/shipit-platform
           token: ${{ secrets.SHIPIT_BUMP_PAT }}
       - name: Bump messaging-api image tag to the new sha
+        if: ${{ secrets.SHIPIT_BUMP_PAT != '' }}
         run: |
           set -e
           SHA="${{ github.sha }}"
