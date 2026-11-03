@@ -15,15 +15,22 @@
 FROM python:3.11.18-slim AS builder
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+# Upgrade the installer first: the base image's bundled pip/wheel carry HIGH
+# CVEs (Trivy gate), and the install should use the latest resolver.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ---- runtime: non-root, minimal ----
 FROM python:3.11.18-slim AS runtime
-# Patch OS packages for the Trivy gate (Debian security updates), create the
-# non-root user, and prepare /data (SQLite home, owned by appuser) for the
+# Patch OS packages for the Trivy gate (Debian security updates) and upgrade
+# the bundled Python toolchain — python:3.11.18-slim ships wheel@0.45.1 and
+# jaraco.context@5.3.0 with HIGH CVEs (fixed in wheel>=0.46.2,
+# jaraco.context>=6.1.0), which Trivy flags in the final image. Then create
+# the non-root user and prepare /data (SQLite home, owned by appuser) for the
 # case where no volume is mounted.
 RUN useradd --create-home --uid 10001 appuser \
     && apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --upgrade pip setuptools wheel jaraco.context \
     && mkdir -p /data && chown appuser:appuser /data
 WORKDIR /app
 COPY --from=builder /install /usr/local
