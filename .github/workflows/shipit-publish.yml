@@ -38,13 +38,34 @@ jobs:
         # Gate: fail on HIGH/CRITICAL vulnerabilities that have a fix
         # available. ignore-unfixed keeps the gate actionable — it blocks
         # on what we can fix, not on unfixable base-image noise.
+        # TEMP-DIAG: json output + annotation below to surface the exact
+        # CVE list (revert to table/exit-code 1 once the base is clean).
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/samir-khadka/messaging-api:${{ github.sha }}
-          format: table
+          format: json
+          output: trivy.json
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          exit-code: '0'
+      - name: Report Trivy findings as annotation (TEMP-DIAG)
+        run: |
+          python3 - <<'EOF'
+          import json
+          d = json.load(open("trivy.json"))
+          findings = []
+          for r in d.get("Results", []):
+              for v in r.get("Vulnerabilities", []) or []:
+                  findings.append(
+                      f"{v['VulnerabilityID']} {v['Severity']} "
+                      f"{v['PkgName']}@{v['InstalledVersion']} "
+                      f"(fixed: {v.get('FixedVersion', '?')}) [{r.get('Target')}]"
+                  )
+          if findings:
+              print("::error::TRIVY-GATE-FINDINGS: " + " | ".join(findings))
+              raise SystemExit(1)
+          print("Trivy gate clean: no HIGH/CRITICAL with fixes.")
+          EOF
       - name: Push image to GHCR
         run: docker push ghcr.io/samir-khadka/messaging-api:${{ github.sha }}
 
