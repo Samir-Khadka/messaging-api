@@ -48,6 +48,13 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+      - name: Locate stale dist-infos (TEMP-DIAG)
+        run: |
+          IMG="ghcr.io/samir-khadka/messaging-api:${{ github.sha }}"
+          OUT=$(docker run --rm "$IMG" find / -name "*.dist-info" -type d 2>/dev/null | grep -iE "setuptools|wheel|jaraco" | sort)
+          echo "::error::DISTINFOS: $OUT"
+          SP=$(docker run --rm "$IMG" python -c "import site,json; print(json.dumps(site.getsitepackages()))")
+          echo "::error::SITEPKGS: $SP"
       - name: Push image to GHCR
         run: docker push ghcr.io/samir-khadka/messaging-api:${{ github.sha }}
 

@@ -32,6 +32,11 @@ RUN useradd --create-home --uid 10001 appuser \
     && apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --upgrade pip \
     && mkdir -p /data && chown appuser:appuser /data
+# Remove CPython's ensurepip bundled wheels: the stdlib ships a setuptools
+# wheel there that Trivy flags as HIGH (CVE-2025-47273) even though it is
+# never installed or imported (no setuptools dist-info exists in
+# site-packages). venv/ensurepip are not used at container runtime.
+RUN rm -rf /usr/local/lib/python*/ensurepip/_bundled
 WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY app/ ./app/
