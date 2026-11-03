@@ -53,22 +53,33 @@ jobs:
     # :<sha> tag back into Samir-Khadka/shipit-platform (k8s/services/messaging)
     # so ArgoCD syncs it. Needs a SHIPIT_BUMP_PAT secret on THIS repo — a PAT
     # with repo write access to Samir-Khadka/shipit-platform.
-    # WITHOUT the PAT, every step below skips (green, no-op) and Samir bumps
-    # manually: cd shipit-platform && ./scripts/bump-service-image.sh messaging-api <sha>
-    # (GitHub does not allow the `secrets` context in a job-level `if`, so the
-    # guard lives on each step instead.)
+    # WITHOUT the PAT, the guard step below records present=false, the rest
+    # skip (green, no-op), and Samir bumps manually:
+    #   cd shipit-platform && ./scripts/bump-service-image.sh messaging-api <sha>
+    # (The `secrets` context is not allowed in a job-level `if`, so the
+    # presence check runs as a step and later steps gate on its output.)
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Check for SHIPIT_BUMP_PAT
+        id: pat
+        env:
+          PAT: ${{ secrets.SHIPIT_BUMP_PAT }}
+        run: |
+          if [ -n "$PAT" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
-        if: ${{ secrets.SHIPIT_BUMP_PAT != '' }}
+        if: steps.pat.outputs.present == 'true'
         with:
           repository: Samir-Khadka/shipit-platform
           token: ${{ secrets.SHIPIT_BUMP_PAT }}
       - name: Bump messaging-api image tag to the new sha
-        if: ${{ secrets.SHIPIT_BUMP_PAT != '' }}
+        if: steps.pat.outputs.present == 'true'
         run: |
           set -e
           SHA="${{ github.sha }}"
