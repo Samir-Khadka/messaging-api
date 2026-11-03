@@ -38,47 +38,16 @@ jobs:
         # Gate: fail on HIGH/CRITICAL vulnerabilities that have a fix
         # available. ignore-unfixed keeps the gate actionable — it blocks
         # on what we can fix, not on unfixable base-image noise.
-        # (2026-11-03: python:3.11.18-slim ships wheel@0.45.1 and
-        # jaraco.context@5.3.0 with HIGH CVEs — the Dockerfile upgrades the
-        # bundled Python toolchain so this gate stays green.)
+        # (2026-11-03: python:3.11.18-slim carries stale setuptools/wheel/
+        # jaraco.context dist-infos with HIGH CVEs; the Dockerfile purges
+        # them and installs pinned-fixed versions so this gate stays green.)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/samir-khadka/messaging-api:${{ github.sha }}
-          format: json
-          output: trivy.json
+          format: table
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '0'
-      - name: Report Trivy findings as annotation (TEMP-DIAG)
-        run: |
-          python3 - <<'EOF'
-          import json
-          d = json.load(open("trivy.json"))
-          findings = []
-          for r in d.get("Results", []):
-              for v in r.get("Vulnerabilities", []) or []:
-                  findings.append(
-                      f"{v['VulnerabilityID']} {v['Severity']} "
-                      f"{v['PkgName']}@{v['InstalledVersion']} "
-                      f"(fixed: {v.get('FixedVersion', '?')}) [{r.get('Target')}]"
-                  )
-          if findings:
-              print("::error::TRIVY-GATE-FINDINGS: " + " | ".join(findings))
-          else:
-              print("Trivy gate clean: no HIGH/CRITICAL with fixes.")
-          EOF
-      - name: Inspect toolchain versions inside image (TEMP-DIAG)
-        run: |
-          IMG="ghcr.io/samir-khadka/messaging-api:${{ github.sha }}"
-          PKGS=$(docker run --rm "$IMG" python -c "
-          import importlib.metadata
-          want = {'setuptools','wheel','jaraco.context','pip'}
-          print([(d.metadata['Name'], d.version) for d in importlib.metadata.distributions() if d.metadata['Name'].lower() in want])")
-          echo "::error::IMAGE-PKGS: $PKGS"
-          LOCS=$(docker run --rm "$IMG" python -c "
-          import setuptools, wheel, jaraco.context as jc
-          print(setuptools.__file__); print(wheel.__file__); print(jc.__file__)" 2>&1)
-          echo "::error::IMAGE-LOCS: $LOCS"
+          exit-code: '1'
       - name: Push image to GHCR
         run: docker push ghcr.io/samir-khadka/messaging-api:${{ github.sha }}
 

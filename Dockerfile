@@ -22,22 +22,26 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 # ---- runtime: non-root, minimal ----
 FROM python:3.11.18-slim AS runtime
-# Patch OS packages for the Trivy gate (Debian security updates) and upgrade
-# the bundled Python toolchain — python:3.11.18-slim ships wheel@0.45.1,
-# jaraco.context@5.3.0 and setuptools@70.3.0 with HIGH CVEs, which Trivy
-# flags in the final image. Explicit minimum pins (not bare --upgrade) so
-# pip cannot consider the vulnerable versions "already satisfied"; the pip
-# self-upgrade runs separately to avoid upgrade-in-one-command quirks. Then
-# create the non-root user and prepare /data (SQLite home, owned by appuser)
-# for the case where no volume is mounted.
+# Patch OS packages for the Trivy gate (Debian security updates), upgrade
+# pip, create the non-root user and prepare /data (SQLite home, owned by
+# appuser) for the case where no volume is mounted.
 RUN useradd --create-home --uid 10001 appuser \
     && apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir "setuptools>=78.1.1" "wheel>=0.46.2" "jaraco.context>=6.1.0" \
     && mkdir -p /data && chown appuser:appuser /data
 WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY app/ ./app/
+# Purge stale Python-toolchain dist-infos AFTER the builder copy, then
+# install pinned-fixed versions. Root cause (2026-11-03): the base image
+# carries leftover setuptools/wheel/jaraco.context .dist-info dirs that pip
+# reports as "already satisfied" (it reads only the newest dist-info) while
+# Trivy still flags the stale ones as HIGH CVEs (CVE-2025-47273,
+# CVE-2026-24049, CVE-2026-23949). An upgrade-in-place leaves the stale
+# dist-infos behind, so removing every copy first is the only reliable fix.
+RUN SP=$(python -c "import site; print(site.getsitepackages()[0])") \
+    && rm -rf "$SP"/setuptools* "$SP"/wheel* "$SP"/jaraco* "$SP"/backports* \
+    && pip install --no-cache-dir "setuptools>=78.1.1" "wheel>=0.46.2" "jaraco.context>=6.1.0"
 USER appuser
 EXPOSE 8000
 ENV DATABASE_PATH=/data/messaging.db
