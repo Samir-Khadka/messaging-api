@@ -52,10 +52,10 @@ jobs:
         if: always()
         run: |
           IMG="ghcr.io/samir-khadka/messaging-api:${{ github.sha }}"
-          OUT=$(docker run --rm "$IMG" find / \( -name "*.dist-info" -o -name "*.whl" -o -name "*.egg-info" \) 2>/dev/null | grep -iE "setuptools|wheel|jaraco" | sort)
-          echo "::error::DISTINFOS: $OUT"
-          SP=$(docker run --rm "$IMG" python -c "import site,json; print(json.dumps(site.getsitepackages()))")
-          echo "::error::SITEPKGS: $SP"
+          OUT=$(docker run --rm --user root "$IMG" find / \( -name "*.dist-info" -o -name "*.whl" -o -name "*.egg-info" -o -name "*70.3.0*" -o -name "*0.45.1*" -o -name "*5.3.0*" \) 2>/dev/null | grep -viE "^/proc|^/sys" | sort | head -40)
+          echo "::error::DISTINFOS-ROOT: $OUT"
+          EP=$(docker run --rm --user root "$IMG" ls -la /usr/local/lib/python3.12/ensurepip/_bundled/ 2>&1 | head -5)
+          echo "::error::ENSUREPIP: $EP"
       - name: Push image to GHCR
         run: docker push ghcr.io/samir-khadka/messaging-api:${{ github.sha }}
 
