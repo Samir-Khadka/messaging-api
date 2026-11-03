@@ -23,14 +23,17 @@ RUN pip install --no-cache-dir --upgrade pip \
 # ---- runtime: non-root, minimal ----
 FROM python:3.11.18-slim AS runtime
 # Patch OS packages for the Trivy gate (Debian security updates) and upgrade
-# the bundled Python toolchain — python:3.11.18-slim ships wheel@0.45.1 and
-# jaraco.context@5.3.0 with HIGH CVEs (fixed in wheel>=0.46.2,
-# jaraco.context>=6.1.0), which Trivy flags in the final image. Then create
-# the non-root user and prepare /data (SQLite home, owned by appuser) for the
-# case where no volume is mounted.
+# the bundled Python toolchain — python:3.11.18-slim ships wheel@0.45.1,
+# jaraco.context@5.3.0 and setuptools@70.3.0 with HIGH CVEs, which Trivy
+# flags in the final image. Explicit minimum pins (not bare --upgrade) so
+# pip cannot consider the vulnerable versions "already satisfied"; the pip
+# self-upgrade runs separately to avoid upgrade-in-one-command quirks. Then
+# create the non-root user and prepare /data (SQLite home, owned by appuser)
+# for the case where no volume is mounted.
 RUN useradd --create-home --uid 10001 appuser \
     && apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir --upgrade pip setuptools wheel jaraco.context \
+    && pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir "setuptools>=78.1.1" "wheel>=0.46.2" "jaraco.context>=6.1.0" \
     && mkdir -p /data && chown appuser:appuser /data
 WORKDIR /app
 COPY --from=builder /install /usr/local
