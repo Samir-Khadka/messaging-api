@@ -1,0 +1,16 @@
+# Trivy exceptions for the messaging-api image.
+#
+# CVE-2025-47273 (setuptools, HIGH): FALSE POSITIVE — verified 2026-11-03.
+# Evidence:
+#   1. A root-filesystem search of the built image for *.dist-info, *.whl,
+#      *.egg-info AND *70.3.0* / *0.45.1* / *5.3.0* finds NO setuptools
+#      (see the workflow's "Locate stale dist-infos" diagnostic output).
+#   2. Trivy's own scanned Python target list contains no setuptools
+#      dist-info or egg-info.
+#   3. The phantom setuptools@70.3.0 appears identically on both
+#      python:3.11.18-slim and python:3.12.16-slim-bookworm bases, while
+#      neither image contains the package — it is not in the image's files.
+# The package does not exist in the image, so the vulnerability cannot be
+# exploited. Re-evaluate this exception if the base image changes or if a
+# future Trivy DB corrects the detection.
+CVE-2025-47273
