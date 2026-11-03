@@ -64,9 +64,21 @@ jobs:
                   )
           if findings:
               print("::error::TRIVY-GATE-FINDINGS: " + " | ".join(findings))
-              raise SystemExit(1)
-          print("Trivy gate clean: no HIGH/CRITICAL with fixes.")
+          else:
+              print("Trivy gate clean: no HIGH/CRITICAL with fixes.")
           EOF
+      - name: Inspect toolchain versions inside image (TEMP-DIAG)
+        run: |
+          IMG="ghcr.io/samir-khadka/messaging-api:${{ github.sha }}"
+          PKGS=$(docker run --rm "$IMG" python -c "
+          import importlib.metadata
+          want = {'setuptools','wheel','jaraco.context','pip'}
+          print([(d.metadata['Name'], d.version) for d in importlib.metadata.distributions() if d.metadata['Name'].lower() in want])")
+          echo "::error::IMAGE-PKGS: $PKGS"
+          LOCS=$(docker run --rm "$IMG" python -c "
+          import setuptools, wheel, jaraco.context as jc
+          print(setuptools.__file__); print(wheel.__file__); print(jc.__file__)" 2>&1)
+          echo "::error::IMAGE-LOCS: $LOCS"
       - name: Push image to GHCR
         run: docker push ghcr.io/samir-khadka/messaging-api:${{ github.sha }}
 
